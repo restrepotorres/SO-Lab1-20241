@@ -3,10 +3,12 @@
 #include <string.h>
 
 int main(int argc, char *argv[]) {
-    // Verificar argumentos
-    if (argc != 2 && argc != 3) {
-        printf("Uso: %s <archivo_entrada> [archivo_salida]\n", argv[0]);
-        printf("  Si no se especifica archivo_salida, se imprime en consola\n");
+    // verificar el numero de argumentos
+    if (argc > 3) {
+        printf("Uso: %s [archivo_entrada] [archivo_salida]\n", argv[0]);
+        printf("  Sin argumentos: lee de stdin y escribe a stdout\n");
+        printf("  1 argumento: lee del archivo y escribe a stdout\n");
+        printf("  2 argumentos: lee del archivo y escribe al archivo de salida\n");
         return 1;
     }
     
@@ -15,11 +17,18 @@ int main(int argc, char *argv[]) {
     int line_count = 0;
     int capacity = 10;    // Capacidad inicial
     
-    // Abrir archivo
-    fp = fopen(argv[1], "r");
-    if (fp == NULL) {
-        printf("Error: No se pudo abrir el archivo %s\n", argv[1]);
-        return 1;
+    // Determinar como ingresan los datos
+    // si argumentos se le ingresa el texto por consola
+    // 1 o mas  argumentos, lee el argumento 1 como entrada
+    if (argc == 1) {
+        fp = stdin;
+        printf("Ingrese el texto (presione Ctrl+D para terminar):\n");
+    } else {
+        fp = fopen(argv[1], "r");
+        if (fp == NULL) {
+            printf("Error: No se pudo abrir el archivo %s\n", argv[1]);
+            return 1;
+        }
     }
     
     // Asignar memoria inicial para el array de punteros
@@ -30,41 +39,22 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     
-    char buffer[1024];  // Buffer temporal para leer líneas
+    char buffer[1024];  // buffer para leer líneas
     
     // Leer todas las líneas del archivo
     while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-        // Si necesitamos más espacio, redimensionar el array
+        // si se necesita mas espacio, se duplica la capacidad del array
         if (line_count >= capacity) {
             capacity *= 2;  // Duplicar la capacidad
             char **temp = realloc(lines, capacity * sizeof(char*));
-            if (temp == NULL) {
-                printf("Error: No se pudo redimensionar memoria\n");
-                // Liberar memoria ya asignada
-                for (int i = 0; i < line_count; i++) {
-                    free(lines[i]);
-                }
-                free(lines);
-                fclose(fp);
-                return 1;
-            }
             lines = temp;
         }
         
-        // Asignar memoria para la línea actual (con espacio extra por si necesitamos \n)
+        // Asignar memoria para la línea actual, y se le suma el espacio para un 2 char para poder ponerle 
+        // \n o \0, es decir un salto de linea o un simbolo de terminacion de archivo
         int line_length = strlen(buffer);
-        lines[line_count] = malloc((line_length + 2) * sizeof(char)); // +2 para \n y \0
-        if (lines[line_count] == NULL) {
-            printf("Error: No se pudo asignar memoria para la línea\n");
-            // Liberar memoria ya asignada
-            for (int i = 0; i < line_count; i++) {
-                free(lines[i]);
-            }
-            free(lines);
-            fclose(fp);
-            return 1;
-        }
-        
+        lines[line_count] = malloc((line_length + 2) * sizeof(char)); 
+
         strcpy(lines[line_count], buffer);
         
         // Si la línea no termina con \n, agregarlo
@@ -76,9 +66,13 @@ int main(int argc, char *argv[]) {
         line_count++;
     }
     
-    fclose(fp);
+    // Cerrar archivo de entrada solo si no es stdin
+    if (fp != stdin) {
+        fclose(fp);
+    }
     
-    // Determinar dónde escribir la salida
+    // Si 3 argumentos, entonces se guarda el resultado en el archivo del tercer argumento
+    // sino, se muestra en la salida estandar 
     FILE *output_fp;
     int write_to_file = (argc == 3);
     
@@ -86,7 +80,6 @@ int main(int argc, char *argv[]) {
         output_fp = fopen(argv[2], "w");
         if (output_fp == NULL) {
             printf("Error: No se pudo crear el archivo de salida %s\n", argv[2]);
-            // Liberar memoria ya asignada
             for (int i = 0; i < line_count; i++) {
                 free(lines[i]);
             }
@@ -94,15 +87,10 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     } else {
-        output_fp = stdout;  // Usar la salida estándar (consola)
+        output_fp = stdout;  
     }
     
-    // Imprimir líneas en orden inverso
-    if (!write_to_file) {
-        fprintf(output_fp, "Contenido del archivo en orden inverso:\n");
-        fprintf(output_fp, "=====================================\n");
-    }
-    
+    // Imprimir líneas al reves con un ciclo hacia atras    
     for (int i = line_count - 1; i >= 0; i--) {
         fprintf(output_fp, "%s", lines[i]);
     }
